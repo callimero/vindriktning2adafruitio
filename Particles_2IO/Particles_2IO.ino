@@ -2,6 +2,7 @@
 VINDRIKTNING Ikea air quality sensor to AdafruitIO
 Serial code based heavily on https://github.com/Hypfer/esp8266-vindriktning-particle-sensor
 */
+#include "ESP8266WiFi.h"
 
 #include <SoftwareSerial.h>
 #include "config.h"
@@ -12,8 +13,8 @@ AdafruitIO_Feed *pm1  = io.feed("PM1");
 AdafruitIO_Feed *pm10 = io.feed("PM10");
 
 
-constexpr static const uint8_t PIN_UART_RX = 4; // D2 on Wemos D1 Mini
-constexpr static const uint8_t PIN_UART_TX = 5; // UNUSED
+constexpr static const uint8_t PIN_UART_RX = 4; // D2 an Wemos D1 Mini
+constexpr static const uint8_t PIN_UART_TX = 13; // UNUSED
 
 SoftwareSerial sensorSerial(PIN_UART_RX, PIN_UART_TX);
 
@@ -37,6 +38,8 @@ void setup() {
   // wait for a connection
   while (io.status() < AIO_CONNECTED) {
     Serial.print(".");
+    Serial.print(io.status());
+   Serial.println(io.statusText());
     delay(500);
   }
 
@@ -58,6 +61,12 @@ void parseState() {
   const uint16_t mpm10 = (serialRxBuf[13] << 8 ^ 1) | serialRxBuf[14];
 
   Serial.printf("PM1=%d   PM2.5=%d   PM10=%d \n", mpm1, mpm25, mpm10);
+
+  for (uint8_t i = 0; i < 20; ++i) {
+        Serial.print(serialRxBuf[i],HEX);
+        Serial.print(":");
+    }
+    Serial.println();
 
   // Send to Adafruit
   pm1 ->save(mpm1);
@@ -95,19 +104,21 @@ void handleUart() {
     return;
   }
 
-  Serial.print("Receiving:");
+  Serial.println("Receiving:");
   while (sensorSerial.available()) {
     serialRxBuf[rxBufIdx++] = sensorSerial.read();
-    Serial.print(".");
-
+    Serial.print(serialRxBuf[rxBufIdx-1],HEX);
+    Serial.print(":");
     // Without this delay, receiving data breaks for reasons that are beyond me
     delay(15);
 
-    if (rxBufIdx >= 64) {
+    if (rxBufIdx >= 128) {
       clearRxBuf();
     }
   }
-  Serial.println("Done.");
+  Serial.print("   ");
+  Serial.print(rxBufIdx);
+  Serial.println(" ...received - Done.");
 
   if (isValidHeader() && isValidChecksum()) {
     parseState();
@@ -121,6 +132,7 @@ void loop() {
   io.run();
 
   delay(5000);
+  Serial.println("Handle UART");
   handleUart();
 
 }
